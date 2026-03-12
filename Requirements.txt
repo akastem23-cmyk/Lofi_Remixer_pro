@@ -1,0 +1,5 @@
+streamlit
+pedalboard
+numpy
+SoundFile
+pydub
