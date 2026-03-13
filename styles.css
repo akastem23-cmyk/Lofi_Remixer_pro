@@ -1,0 +1,65 @@
+/* डार्क बैकग्राउंड */
+.stApp {
+    background-color: #0c0c0e;
+    color: #e4e4e7;
+    font-family: 'Inter', sans-serif;
+}
+
+/* हेडर में आपका नाम */
+.brand-name {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: #ff4b4b; /* लाल रंग */
+    text-align: center;
+    text-shadow: 0px 0px 15px rgba(255, 75, 75, 0.6);
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+
+.made-in-india {
+    font-size: 0.9rem;
+    color: #22c55e;
+    text-align: center;
+    font-weight: bold;
+    letter-spacing: 2px;
+    margin-bottom: 30px;
+}
+
+/* स्लाइडर का गोल बटन (Thumb) लाल करना */
+div[role="slider"] {
+    background-color: #ffffff !important;
+    border: 2px solid #ff4b4b !important;
+    box-shadow: 0px 0px 8px rgba(255, 75, 75, 0.8) !important;
+}
+
+/* बटन्स का प्रीमियम लाल लुक */
+.stButton>button {
+    background: linear-gradient(135deg, #ff4b4b 0%, #ff2b2b 100%);
+    color: white;
+    font-weight: bold;
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0px 4px 15px rgba(255, 75, 75, 0.3);
+    transition: 0.3s ease-in-out;
+}
+.stButton>button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0px 6px 20px rgba(255, 75, 75, 0.6);
+}
+
+/* Footer का डिज़ाइन */
+.footer {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    background-color: rgba(9, 9, 11, 0.95);
+    backdrop-filter: blur(8px);
+    color: #71717a;
+    text-align: center;
+    font-size: 12px;
+    padding: 12px 0;
+    border-top: 1px solid #27272a;
+    z-index: 999;
+    letter-spacing: 1px;
+}
