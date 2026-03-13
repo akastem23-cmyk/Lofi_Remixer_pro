@@ -1,1 +1,3 @@
 ffmpeg
+libavcodec-extra
+libasound2-dev
