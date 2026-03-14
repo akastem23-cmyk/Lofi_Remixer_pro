@@ -1,78 +1,106 @@
 import streamlit as st
 import time
-from engine import process_audio
+from engine import process_audio, convert_format
 
 st.set_page_config(page_title="Lofi AI Remixer | Akash Babu", page_icon="🎧", layout="centered")
 
+# Smooth animation ke liye CSS
+st.markdown("""
+<style>
+@keyframes fadeIn {
+  0% { opacity: 0; transform: translateY(-10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeIn 0.4s ease-in-out; }
+</style>
+""", unsafe_allow_html=True)
+
+@st.cache_data(show_spinner=False)
+def get_download_audio(wav_bytes, fmt):
+    return convert_format(wav_bytes, fmt)
+
 if 'history' not in st.session_state: st.session_state.history = []
+
 try:
     with open("styles.css", encoding="utf-8") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 except FileNotFoundError: pass
 
+# 🌐 Bhasha (Language) badalne ka logic
+lang_is_english = st.toggle("🌐 Switch to English", value=False)
+
+def t(en_text, hi_text):
+    return en_text if lang_is_english else hi_text
+
 st.markdown("<h1 style='text-align: center;'>🎧 Lofi AI Remixer Pro</h1>", unsafe_allow_html=True)
 st.markdown("<div class='brand-name'>Engineered with ❤️ by Akash Babu</div>", unsafe_allow_html=True)
-st.markdown("<div class='made-in-india'>Proudly Made in India 🇮🇳</div>", unsafe_allow_html=True)
 
-lang_is_english = st.toggle("🌐 Switch to English", value=False)
-if lang_is_english: st.warning("⚠️ Note: Data here is temporary. Please download your remixes!")
-else: st.warning("⚠️ ध्यान दें: यहाँ डेटा टेम्पररी है। कृपया अपना रिमिक्स डाउनलोड कर लें!")
+# 🚨 Copyright aur Warning Section
+warn_hi = "⚠️ **ध्यान दें:** यहाँ डेटा टेम्पररी है। कृपया रिमिक्स डाउनलोड कर लें! <br>⚖️ **कॉपीराइट:** आप जो गाना रिमिक्स कर रहे हैं, उसके कॉपीराइट के लिए आप खुद ज़िम्मेदार हैं। बिना परमिशन के किसी का गाना कमर्शियल यूज़ न करें।"
+warn_en = "⚠️ **Note:** Data is temporary. Download your remixes! <br>⚖️ **Copyright:** You are solely responsible for the copyright of the audio you remix. Do not use copyrighted material commercially without permission."
+st.warning(t(warn_en, warn_hi), icon="⚠️")
 
-with st.sidebar:
-    if st.button("➕ New Remix", use_container_width=True, type="primary"): st.rerun()
-    st.header("📜 My Remixes")
-    if len(st.session_state.history) == 0:
-        st.info("No recent remixes." if lang_is_english else "यहाँ आपके बनाये गए गाने दिखेंगे।")
-    else:
-        for i, item in enumerate(reversed(st.session_state.history)):
-            col1, col2 = st.columns([0.85, 0.15])
-            with col1: st.markdown(f"**🎵 {item['song']}**")
-            with col2:
-                with st.popover("⋮"):
-                    # जो फॉर्मेट चुना गया था, उसी फॉर्मेट में प्ले और डाउनलोड होगा
-                    file_ext = item.get('ext', 'wav')
-                    mime_type = "audio/mpeg" if file_ext == "mp3" else f"audio/{file_ext}"
-                    
-                    st.audio(item['audio_data'], format=mime_type)
-                    st.download_button("📥 Download", data=item['audio_data'], file_name=f"AkashBabu_{item['song']}.{file_ext}", mime=mime_type, key=f"dl_{i}")
-                    if st.button("🗑️ Delete", key=f"del_{i}"):
-                        st.session_state.history.remove(item)
-                        st.rerun()
-            st.divider()
-
-uploaded_file = st.file_uploader("Drop Audio File (MP3, WAV, M4A)", type=["mp3", "wav", "m4a"])
+uploaded_file = st.file_uploader(t("Drop Audio File (MP3, WAV, M4A)", "अपना गाना यहाँ डालें (MP3, WAV, M4A)"), type=["mp3", "wav", "m4a"])
 
 if uploaded_file:
+    if 'current_file' not in st.session_state or st.session_state['current_file'] != uploaded_file.name:
+        st.session_state['current_file'] = uploaded_file.name
+        if 'latest_remix' in st.session_state: del st.session_state['latest_remix']
+
     st.audio(uploaded_file)
-    st.success(f"🎵 '{uploaded_file.name}' Ready for Magic!")
+    st.success(t(f"🎵 '{uploaded_file.name}' Ready for Magic!", f"🎵 '{uploaded_file.name}' जादू के लिए तैयार!"))
     st.divider()
 
-    st.markdown("### 🎛️ The Studio Controls")
-    tab1, tab2, tab3 = st.tabs(["🎛️ Basic Tuning", "🌌 Spatial & FX", "🎚️ 9-Band EQ"])
+    st.markdown(t("### 🎛️ The Studio Controls", "### 🎛️ स्टूडियो कंट्रोल्स"))
+    tab1, tab2, tab3 = st.tabs([
+        t("🎛️ Basic Tuning", "🎛️ बेसिक ट्यूनिंग"), 
+        t("🌌 Spatial & FX", "🌌 स्पेशल & FX"), 
+        t("🎚️ 9-Band EQ", "🎚️ 9-बैंड EQ")
+    ])
     
     with tab1:
-        speed_factor = st.slider("🏃‍♂️ Speed (x)", 0.5, 1.5, 0.85, 0.05)
-        pitch_semitones = st.slider("🎤 Pitch (Semitones)", -12, 12, 0, 1)
-        reverb_percent = st.slider("🌧️ Reverb (%)", 0, 100, 50, 5)
+        speed_factor = st.slider(t("🏃‍♂️ Speed (x)", "🏃‍♂️ स्पीड (रफ़्तार)"), 0.5, 1.5, 0.85, 0.05)
+        pitch_semitones = st.slider(t("🎤 Pitch (Semitones)", "🎤 पिच (आवाज़ भारी/पतली)"), -12, 12, 0, 1)
+        reverb_percent = st.slider(t("🌧️ Reverb (%)", "🌧️ गूंज (Reverb %)"), 0, 100, 50, 5)
 
     with tab2:
-        stereo_percent = st.slider("🎧 Stereo Width (%)", 0, 100, 30, 5)
-        enable_underwater = st.toggle("🌊 Underwater / Muffled Filter", value=False)
-        underwater_freq = st.slider("🌫️ Muffle Strength (Hz)", 100, 2000, 400) if enable_underwater else 3500
+        stereo_percent = st.slider(t("🎧 Stereo Width (%)", "🎧 स्टीरियो चौड़ाई (%)"), 0, 100, 30, 5)
+        
+        enable_underwater = st.toggle(t("🌊 Underwater / Muffled Filter", "🌊 अंडरवाटर / मफ़ल इफ़ेक्ट"), value=False)
+        # 🚨 Hide/Show Logic (Ab ye gayab rahega jab band hoga)
+        if enable_underwater:
+            st.markdown("<div class='fade-in'>", unsafe_allow_html=True)
+            underwater_freq = st.slider(t("🌫️ Muffle Strength (Hz)", "🌫️ इफ़ेक्ट की ताकत (Hz)"), 100, 2000, 400)
+            st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            underwater_freq = 3500 # Default off value
+            
         st.divider()
-        enable_8d = st.toggle("🌌 Enable 8D Sound", value=False)
-        speed_8d = st.slider("🌀 8D Spin Speed (%)", 0, 100, 50, 5) if enable_8d else 50
+        enable_8d = st.toggle(t("🌌 Enable 8D Sound", "🌌 8D साउंड चालू करें"), value=False)
+        if enable_8d:
+            st.markdown("<div class='fade-in'>", unsafe_allow_html=True)
+            speed_8d = st.slider(t("🌀 8D Spin Speed (%)", "🌀 8D घूमने की स्पीड (%)"), 0, 100, 50, 5)
+            st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            speed_8d = 50
 
     with tab3:
-        st.caption("चुटकी बजाते ही 'वाइब' बदलें:")
-        presets = {
+        presets_en = {
             "🎛️ Custom (Manual)": [0, 0, 0, 0, 0, 0, 0, 0, 0],
+            "🌧️ Deep Lofi (Relaxing & Heavy Bass)": [6, 4, 2, 0, -2, -4, -6, -8, -10],
+            "🎧 Late Night Drive (Car Vibe)": [4, 3, 0, -2, -2, 1, 3, 4, 2],
+            "📻 Vintage Radio (Nostalgia)": [-10, -8, -3, 2, 5, 3, -2, -6, -10],
+            "✨ Acoustic Chill (Clear Vocals)": [-2, -1, 0, 2, 4, 3, 2, 1, 0]
+        }
+        presets_hi = {
+            "🎛️ कस्टम (मैनुअल)": [0, 0, 0, 0, 0, 0, 0, 0, 0],
             "🌧️ Deep Lofi (सुकून और भारी बेस)": [6, 4, 2, 0, -2, -4, -6, -8, -10],
             "🎧 Late Night Drive (कार वाली फील)": [4, 3, 0, -2, -2, 1, 3, 4, 2],
             "📻 Vintage Radio (पुरानी यादें)": [-10, -8, -3, 2, 5, 3, -2, -6, -10],
             "✨ Acoustic Chill (साफ़ आवाज़)": [-2, -1, 0, 2, 4, 3, 2, 1, 0]
         }
-        selected_preset = st.selectbox("✨ Vibe चुनें (EQ Presets):", list(presets.keys()))
+        presets = presets_en if lang_is_english else presets_hi
+        selected_preset = st.selectbox(t("✨ Choose Vibe (EQ Presets):", "✨ Vibe चुनें (EQ Presets):"), list(presets.keys()))
         current_eq = presets[selected_preset]
         st.divider()
         
@@ -86,41 +114,57 @@ if uploaded_file:
 
     st.write("") 
     
-    # 🚨 नया फीचर: एक्सपोर्ट फॉर्मेट!
-    st.markdown("### 💾 Export Settings")
-    col_fmt, _ = st.columns([0.5, 0.5])
-    with col_fmt:
-        selected_format = st.selectbox("किस फॉर्मेट में डाउनलोड करना है?", ["MP3", "WAV", "M4A"])
-
-    if st.button("🔥 CREATE MY LOFI REMIX", type="primary", use_container_width=True):
-        with st.spinner(f"Processing & Saving as {selected_format}... 🎵"):
+    btn_text = t("🔥 CREATE MY LOFI REMIX", "🔥 मेरा लोफी रिमिक्स बनाओ")
+    if st.button(btn_text, type="primary", use_container_width=True):
+        with st.spinner(t("Processing your Masterpiece... 🎵", "आपका रिमिक्स बन रहा है... 🎵")):
             try:
-                # फॉर्मेट को छोटे अक्षरों (mp3, wav) में पास करें
-                fmt_lower = selected_format.lower()
-                
-                processed_audio = process_audio(
+                processed_wav = process_audio(
                     uploaded_file.getvalue(), uploaded_file.name, speed_factor, 
                     pitch_semitones, reverb_percent, stereo_percent, 
-                    enable_8d, speed_8d, underwater_freq, eq_bands, output_format=fmt_lower
+                    enable_8d, speed_8d, underwater_freq, eq_bands
                 )
-                st.success("✅ Masterpiece Ready!")
-                st.balloons() 
-                
-                # ऑडियो प्लेयर भी उसी फॉर्मेट में बजेगा
-                mime_type = "audio/mpeg" if fmt_lower == "mp3" else f"audio/{fmt_lower}"
-                st.audio(processed_audio, format=mime_type)
-                
-                # हिस्ट्री में एक्सटेंशन भी सेव करें ताकि डाउनलोड सही से हो
-                st.session_state.history.append({
-                    "song": uploaded_file.name, 
-                    "audio_data": processed_audio,
-                    "ext": fmt_lower
-                })
+                st.session_state['latest_remix'] = {
+                    "data": processed_wav,
+                    "name": uploaded_file.name
+                }
+                st.rerun() 
             except Exception as e:
-                st.error(f"Error processing audio: {e}")
+                st.error(f"Error: {e}")
+
+    # 🚨 Download Box (Generate hone ke baad aayega)
+    if 'latest_remix' in st.session_state and st.session_state['current_file'] == uploaded_file.name:
+        st.divider()
+        st.success(t("✅ Your Remix is Ready!", "✅ आपका रिमिक्स तैयार है!"))
+        st.balloons() # Bubbles yaha safe hain!
+        
+        st.audio(st.session_state['latest_remix']['data'], format="audio/wav")
+        
+        st.markdown(t("### 💾 Export & Download", "### 💾 एक्सपोर्ट और डाउनलोड"))
+        col_fmt, col_btn = st.columns([0.4, 0.6])
+        
+        with col_fmt:
+            selected_format = st.selectbox(t("Format:", "फॉर्मेट चुनें:"), ["WAV", "MP3", "M4A"])
+            
+        with col_btn:
+            fmt_lower = selected_format.lower()
+            mime_type = "audio/mpeg" if fmt_lower == "mp3" else f"audio/{fmt_lower}"
+            
+            with st.spinner(t(f"Preparing {selected_format}...", f"{selected_format} तैयार हो रहा है...")):
+                dl_bytes = get_download_audio(st.session_state['latest_remix']['data'], fmt_lower)
+                
+            st.write("") 
+            dl_label = t(f"📥 Download {selected_format}", f"📥 {selected_format} डाउनलोड करें")
+            st.download_button(
+                label=dl_label, 
+                data=dl_bytes, 
+                file_name=f"AkashBabu_{uploaded_file.name}.{fmt_lower}", 
+                mime=mime_type, 
+                type="primary", 
+                use_container_width=True
+            )
 
 else:
-    st.info("👆 शुरू करने के लिए ऊपर अपना गाना अपलोड करें।")
+    st.info(t("👆 Drop an audio file above to start.", "👆 शुरू करने के लिए ऊपर अपना गाना अपलोड करें।"))
 
 st.markdown("""
     <div class="footer">

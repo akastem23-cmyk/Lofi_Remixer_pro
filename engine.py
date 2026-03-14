@@ -5,24 +5,22 @@ import subprocess
 from pedalboard import Pedalboard, Reverb, Compressor, LowpassFilter, Chorus, PitchShift, PeakFilter
 from pedalboard.io import AudioFile
 
-# यहाँ नया पैरामीटर 'output_format' जोड़ा गया है
-def process_audio(input_bytes, file_name, speed_factor, pitch_semitones, reverb_percent, stereo_percent, enable_8d, speed_8d, underwater_freq, eq_bands, output_format="wav"):
+def process_audio(input_bytes, file_name, speed_factor, pitch_semitones, reverb_percent, stereo_percent, enable_8d, speed_8d, underwater_freq, eq_bands):
     ext = os.path.splitext(file_name)[1].lower()
     
+    # 1. टेम्परेरी फाइल बनाना
     with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp_in:
         tmp_in.write(input_bytes)
         tmp_in_path = tmp_in.name
 
-    # .m4a को पढ़ने के लिए WAV में बदलना
+    # 🚨 .m4a को पढ़ने के लिए WAV में बदलना
     if ext == ".m4a":
         wav_path = tmp_in_path.replace(".m4a", ".wav")
         subprocess.run(['ffmpeg', '-i', tmp_in_path, wav_path, '-y'], check=True, capture_output=True)
         os.remove(tmp_in_path)
         tmp_in_path = wav_path
 
-    # यह प्रोसेस होने के बाद की टेम्परेरी फाइल है
-    output_wav_path = tmp_in_path + "_processed.wav"
-    final_output_path = output_wav_path
+    output_path = tmp_in_path + "_processed.wav"
 
     try:
         with AudioFile(tmp_in_path) as f:
@@ -32,6 +30,7 @@ def process_audio(input_bytes, file_name, speed_factor, pitch_semitones, reverb_
         new_samplerate = int(samplerate * speed_factor)
         effects = []
 
+        # इफ़ेक्ट्स लगाना
         effects.append(LowpassFilter(cutoff_frequency_hz=underwater_freq))
 
         if pitch_semitones != 0:
@@ -51,7 +50,7 @@ def process_audio(input_bytes, file_name, speed_factor, pitch_semitones, reverb_
         board = Pedalboard(effects)
         processed_audio = board(audio, samplerate)
 
-        # 8D Effect
+        # 🌌 8D Effect (Panning)
         if enable_8d and processed_audio.shape[0] == 2:
             lfo_hz = 0.1 + (speed_8d / 100.0) * 1.9  
             duration = processed_audio.shape[1] / samplerate
@@ -63,25 +62,38 @@ def process_audio(input_bytes, file_name, speed_factor, pitch_semitones, reverb_
             processed_audio[0, :] = processed_audio[0, :] * left_gain
             processed_audio[1, :] = processed_audio[1, :] * right_gain
 
-        # 1. पहले WAV फॉर्मेट में सेव करें
-        with AudioFile(output_wav_path, 'w', new_samplerate, processed_audio.shape[0]) as f:
+        # प्रोसेस हुए गाने को WAV में सेव करना
+        with AudioFile(output_path, 'w', new_samplerate, processed_audio.shape[0]) as f:
             f.write(processed_audio)
 
-        # 2. 🚨 जादू: यूज़र की पसंद के हिसाब से कन्वर्ट करें!
-        if output_format == "mp3":
-            final_output_path = output_wav_path.replace(".wav", ".mp3")
-            subprocess.run(['ffmpeg', '-i', output_wav_path, '-b:a', '320k', final_output_path, '-y'], check=True, capture_output=True)
-        elif output_format == "m4a":
-            final_output_path = output_wav_path.replace(".wav", ".m4a")
-            subprocess.run(['ffmpeg', '-i', output_wav_path, '-c:a', 'aac', '-b:a', '256k', final_output_path, '-y'], check=True, capture_output=True)
-
-        # फाइनल फाइल पढ़ें और वापस भेजें
-        with open(final_output_path, 'rb') as f:
+        # फाइल को पढ़कर वापस भेजना
+        with open(output_path, 'rb') as f:
             return f.read()
 
     finally:
-        # सफाई (ताकि सर्वर फुल न हो)
+        # कचरा साफ़ करना (सर्वर को हल्का रखने के लिए)
         if os.path.exists(tmp_in_path): os.remove(tmp_in_path)
-        if os.path.exists(output_wav_path): os.remove(output_wav_path)
-        if final_output_path != output_wav_path and os.path.exists(final_output_path): 
-            os.remove(final_output_path)
+        if os.path.exists(output_path): os.remove(output_path)
+
+# 🚨 नया फंक्शन: डाउनलोड के समय यूज़र की पसंद के फॉर्मेट में बदलने के लिए
+def convert_format(wav_bytes, target_format):
+    if target_format == "wav": return wav_bytes
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
+        tmp_wav.write(wav_bytes)
+        wav_path = tmp_wav.name
+        
+    out_path = wav_path.replace(".wav", f".{target_format}")
+    try:
+        # FFmpeg से कन्वर्ट करना (High Quality)
+        if target_format == "mp3":
+            subprocess.run(['ffmpeg', '-i', wav_path, '-b:a', '320k', out_path, '-y'], check=True, capture_output=True)
+        elif target_format == "m4a":
+            subprocess.run(['ffmpeg', '-i', wav_path, '-c:a', 'aac', '-b:a', '256k', out_path, '-y'], check=True, capture_output=True)
+            
+        with open(out_path, 'rb') as f:
+            return f.read()
+    finally:
+        # सफाई
+        if os.path.exists(wav_path): os.remove(wav_path)
+        if os.path.exists(out_path): os.remove(out_path)
